@@ -5,6 +5,8 @@ import ChatInterface from '../../components/chatbot/ChatInterface';
 import { v4 as uuidv4 } from 'uuid';
 import Link from 'next/link';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+
 interface Message {
   id: string;
   text: string;
@@ -38,7 +40,7 @@ export default function ChatbotPage() {
 
   async function fetchTodos(token: string) {
     try {
-      const res = await fetch('http://localhost:8000/todos', {
+      const res = await fetch(`${API_URL}/todos`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -66,7 +68,7 @@ export default function ChatbotPage() {
 
   async function fetchChatHistory(token: string) {
     try {
-      const res = await fetch('http://localhost:8000/chatbot/history', {
+      const res = await fetch(`${API_URL}/chatbot/history`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -154,7 +156,7 @@ export default function ChatbotPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/chatbot/process', {
+      const response = await fetch(`${API_URL}/chatbot/process`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,7 +229,7 @@ export default function ChatbotPage() {
     setTodos(updatedTodos);
 
     try {
-      const res = await fetch(`http://localhost:8000/todos/${id}`, {
+      const res = await fetch(`${API_URL}/todos/${id}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -256,7 +258,7 @@ export default function ChatbotPage() {
     setTodos(todos.filter(todo => todo.id !== id));
 
     try {
-        const res = await fetch(`http://localhost:8000/todos/${id}`, {
+        const res = await fetch(`${API_URL}/todos/${id}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${authToken}`

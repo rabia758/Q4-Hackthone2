@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link';
 
 // Backend API URL - Change this if your backend runs on a different port/host
-const API_URL = 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface Todo {
   id: string;
