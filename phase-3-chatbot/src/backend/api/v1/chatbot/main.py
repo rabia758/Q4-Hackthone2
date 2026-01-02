@@ -8,12 +8,12 @@ import uuid
 from datetime import datetime
 
 from .auth import get_current_user, User
-from ...models import Todo, TodoCreate, ChatMessageCreate
-from ...services.todo_service import TodoService
-from ...services.chat_service import ChatService
-from .. import get_db
-from ....lib.ai_service import ai_service, AIResponse
-from ....lib.ai_utils import detect_intent, extract_entities, format_response
+from src.backend.models import Todo, TodoCreate, ChatMessageCreate
+from src.backend.services.todo_service import TodoService
+from src.backend.services.chat_service import ChatService
+from src.backend.database import get_db
+from src.backend.lib.ai_service import ai_service, AIResponse
+from src.backend.lib.ai_utils import detect_intent, extract_entities, format_response
 
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 

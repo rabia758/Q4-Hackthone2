@@ -27,7 +27,7 @@ class ChatMessage(SQLModel, table=True):
     user_id: str = Field(index=True)
     message: str = Field(sa_column_kwargs={"nullable": False})
     intent: str = Field(default=None, index=True)  # CREATE, UPDATE, DELETE, QUERY, etc.
-    entities: Dict[str, Any] = Field(default={}, sa_column_type=JSON)  # Extracted entities from the message
+    entities: Dict[str, Any] = Field(default={}, sa_type=JSON)  # Extracted entities from the message
     response: str = Field(sa_column_kwargs={"nullable": False})
     created_at: Optional[datetime] = Field(default=None)
     session_id: Optional[str] = Field(default=None, index=True)
