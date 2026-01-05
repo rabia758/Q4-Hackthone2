@@ -1,7 +1,6 @@
 import sys
 import os
 from mangum import Mangum
-from fastapi import Request, Response
 
 # Add the project root to sys.path so 'src' can be imported
 sys_path_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +14,7 @@ from src.backend.main import app
 app.root_path = "/api"
 
 # Create the mangum handler for serverless deployment
-handler = Mangum(app, lifespan="off")
+mangum_handler = Mangum(app, lifespan="off")
 
 def main_handler(event, context):
     """
@@ -26,7 +25,8 @@ def main_handler(event, context):
         os.environ['NEXT_PUBLIC_API_URL'] = '/api'
 
     # Handle the request using Mangum
-    return handler(event, context)
+    response = mangum_handler(event, context)
+    return response
 
 # Make the handler available for Vercel
-app_handler = main_handler
+handler = main_handler

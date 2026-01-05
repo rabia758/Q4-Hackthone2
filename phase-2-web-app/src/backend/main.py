@@ -46,7 +46,7 @@ load_dotenv()
 
 # Database setup
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./todo_app.db")
-print(f"DEBUG: Original DATABASE_URL: {DATABASE_URL[:50]}...")
+print(f"DEBUG: Original DATABASE_URL: {DATABASE_URL[:100]}...")
 
 # Handle Heroku/Neon postgres:// vs postgresql://
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
@@ -63,7 +63,24 @@ if "vercel" in os.getenv("VERCEL_ENV", "") or "Vercel" in os.getenv("HOSTING_ENV
     else:
         print("DEBUG: Using PostgreSQL database on Vercel")
 
-engine = create_engine(DATABASE_URL, echo=True)
+# Create engine with additional connection parameters for serverless
+try:
+    if DATABASE_URL.startswith("postgresql"):
+        # For PostgreSQL, add connection parameters suitable for serverless
+        engine = create_engine(
+            DATABASE_URL,
+            echo=True,
+            pool_pre_ping=True,  # Verify connections before use
+            pool_recycle=300,    # Recycle connections every 5 minutes
+        )
+    else:
+        # For SQLite, use default settings
+        engine = create_engine(DATABASE_URL, echo=True)
+    print("DEBUG: Database engine created successfully")
+except Exception as e:
+    print(f"DEBUG: Error creating database engine: {e}")
+    # Fallback to in-memory SQLite for testing purposes
+    engine = create_engine("sqlite:///:memory:", echo=True)
 
 # JWT Setup
 BETTER_AUTH_SECRET = os.getenv("BETTER_AUTH_SECRET", "your-shared-secret-key-at-least-32-chars")
