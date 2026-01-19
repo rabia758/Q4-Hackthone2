@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-todo-chatbot-deployment
+  labels:
+    app: ai-todo-chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-todo-chatbot
+  template:
+    metadata:
+      labels:
+        app: ai-todo-chatbot
+    spec:
+      containers:
+      - name: ai-todo-chatbot
+        image: ai-todo-chatbot:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-todo-chatbot-secrets
+              key: openai-api-key
+        - name: DATABASE_URL
+          value: "sqlite:///./todo_chatbot.db"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5

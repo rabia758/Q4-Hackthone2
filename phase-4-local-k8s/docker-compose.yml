@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  ai-todo-chatbot:
+    build:
+      context: ..
+      dockerfile: phase-4-local-k8s/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./todo_chatbot.db}
+    volumes:
+      - ./phase-3-chatbot:/app/phase-3-chatbot
+    restart: unless-stopped

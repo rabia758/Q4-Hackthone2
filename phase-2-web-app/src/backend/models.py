@@ -10,16 +10,18 @@ from typing import Optional, Dict, Any
 
 class Todo(SQLModel, table=True):
     """
-    Represents a user's todo item
+    Represents a user's todo item (matching actual Neon DB schema)
     """
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     title: str = Field(nullable=False)
-    description: Optional[str] = Field(default=None)
     completed: bool = Field(default=False)
-    is_deleted: bool = Field(default=False)
     user_id: str = Field(index=True)
     created_at: Optional[datetime] = Field(default=None)
     updated_at: Optional[datetime] = Field(default=None)
+
+    # Temporarily exclude fields that don't exist in the Neon database
+    # description: Optional[str] = Field(default=None)
+    # is_deleted: bool = Field(default=False)
 
 
 class ChatMessage(SQLModel, table=True):

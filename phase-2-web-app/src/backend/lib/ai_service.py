@@ -9,7 +9,7 @@ from pydantic import BaseModel
 import json
 import asyncio
 from enum import Enum
-from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError, APIConnectionError, Timeout
+from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError, APIConnectionError, APITimeoutError
 
 # Load environment variables
 load_dotenv()
@@ -43,23 +43,31 @@ class AIService:
     """Main AI service class for processing natural language commands"""
 
     def __init__(self):
-        # Prefer OPENROUTER_MODEL if using OpenRouter, otherwise OPENAI_MODEL, default to gpt-3.5-turbo
-        api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
-        base_url = "https://openrouter.ai/api/v1" if os.getenv("OPENROUTER_API_KEY") else None
+        # Determine API Key and Base URL
+        # Priority: OPENROUTER_API_KEY > OPENAI_API_KEY
+        self.api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
         
-        if os.getenv("OPENROUTER_API_KEY"):
+        # Determine Base URL
+        # If explicitly set, use it. If OPENROUTER key present or key starts with sk-or-v1, use OpenRouter URL.
+        self.base_url = os.getenv("OPENAI_BASE_URL")
+        if not self.base_url:
+            if os.getenv("OPENROUTER_API_KEY") or (self.api_key and self.api_key.startswith("sk-or-v1-")):
+                self.base_url = "https://openrouter.ai/api/v1"
+
+        # Determine Model
+        if os.getenv("OPENROUTER_API_KEY") or (self.api_key and self.api_key.startswith("sk-or-v1-")):
              self.model = os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
-             logger.info("Using OpenRouter API")
+             logger.info(f"Using OpenRouter API with model {self.model}")
         else:
              self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-             logger.info("Using OpenAI API")
+             logger.info(f"Using OpenAI API with model {self.model}")
 
-        if not api_key:
+        if not self.api_key:
             raise ValueError("No API key found. Please set OPENROUTER_API_KEY or OPENAI_API_KEY environment variable.")
             
         self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url
+            api_key=self.api_key,
+            base_url=self.base_url
         )
              
         self.max_retries = 3
@@ -147,8 +155,6 @@ class AIService:
                         response="I'm currently experiencing high demand. Please try again in a few moments.",
                         intent="UNKNOWN"
                     )
-            # OpenAI v1 renamed InvalidRequestError to BadRequestError, but generic APIError often covers it or we check specific types if needed.
-            # Here we will catch generic APIError which covers connection issues too in some contexts, but specifically APIConnectionError is separate.
             except APIConnectionError as e:
                  logger.error(f"OpenAI connection error: {str(e)}")
                  retry_count += 1
@@ -179,7 +185,7 @@ class AIService:
                         response="I'm having trouble connecting to the AI service. Please try again later.",
                         intent="UNKNOWN"
                     )
-            except Timeout as e:
+            except APITimeoutError as e:
                 logger.error(f"OpenAI request timed out: {str(e)}")
                 retry_count += 1
                 if retry_count < self.max_retries:

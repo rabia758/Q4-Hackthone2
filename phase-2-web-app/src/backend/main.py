@@ -23,23 +23,13 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
 print("DEBUG: Importing local modules...")
-# Absolute imports from src.backend
-try:
-    from src.backend.models import Todo, ChatMessage, ChatMessageCreate, TodoCreate, TodoUpdate
-    from src.backend.lib.ai_service import ai_service, AIResponse
-    from src.backend.lib.ai_utils import detect_intent, extract_entities, format_response
-    from src.backend.services.todo_service import TodoService
-    from src.backend.services.chat_service import ChatService
-    print("DEBUG: Local modules imported successfully.")
-except ImportError as e:
-    print(f"DEBUG: ImportError during module import: {e}")
-    # Fallback to local imports if absolute fails
-    print("DEBUG: Attempting fallback to local imports...")
-    from models import Todo, ChatMessage, ChatMessageCreate, TodoCreate, TodoUpdate
-    from lib.ai_service import ai_service, AIResponse
-    from lib.ai_utils import detect_intent, extract_entities, format_response
-    from services.todo_service import TodoService
-    from services.chat_service import ChatService
+# Fallback to local imports since absolute imports are causing issues
+from models import Todo, ChatMessage, ChatMessageCreate, TodoCreate, TodoUpdate
+from lib.ai_service import ai_service, AIResponse
+from lib.ai_utils import detect_intent, extract_entities, format_response
+from services.todo_service import TodoService
+from services.chat_service import ChatService
+print("DEBUG: Local modules imported successfully.")
 
 # Load environment variables
 load_dotenv()
@@ -92,11 +82,12 @@ class TodoRead(BaseModel):
     id: UUID
     user_id: str
     title: str
-    description: Optional[str] = None
     completed: bool = False
-    is_deleted: bool = False
     created_at: datetime
     updated_at: Optional[datetime] = None
+    # Include fields that don't exist in DB but set defaults
+    description: Optional[str] = None
+    is_deleted: bool = False
 
 # Initialize database
 def create_db_and_tables():
@@ -154,23 +145,49 @@ def read_root():
 
 @app.post("/todos", response_model=TodoRead)
 def create_todo_endpoint(todo: TodoCreate, current_user: dict = Depends(get_current_user), session: Session = Depends(get_session)):
+    # Create todo without description and is_deleted fields (since they don't exist in Neon DB)
     db_todo = Todo(
         user_id=current_user["id"],
         title=todo.title,
-        description=todo.description,
         completed=todo.completed,
         created_at=datetime.utcnow()
+        # Skip description and is_deleted since they don't exist in the DB
     )
     session.add(db_todo)
     session.commit()
     session.refresh(db_todo)
-    return db_todo
+    # Manually add default values for missing fields in the response
+    response_todo = TodoRead(
+        id=db_todo.id,
+        user_id=db_todo.user_id,
+        title=db_todo.title,
+        completed=db_todo.completed,
+        created_at=db_todo.created_at,
+        updated_at=db_todo.updated_at,
+        description=todo.description,  # Include the requested description in response
+        is_deleted=False  # Default value since column doesn't exist
+    )
+    return response_todo
 
 @app.get("/todos", response_model=List[TodoRead])
 def read_todos(current_user: dict = Depends(get_current_user), session: Session = Depends(get_session)):
     statement = select(Todo).where(Todo.user_id == current_user["id"]).order_by(Todo.created_at.desc())
     results = session.exec(statement).all()
-    return results
+    # Convert to TodoRead with default values for missing fields
+    todo_list = []
+    for todo in results:
+        todo_read = TodoRead(
+            id=todo.id,
+            user_id=todo.user_id,
+            title=todo.title,
+            completed=todo.completed,
+            created_at=todo.created_at,
+            updated_at=todo.updated_at,
+            description=None,  # Default since column doesn't exist
+            is_deleted=False  # Default since column doesn't exist
+        )
+        todo_list.append(todo_read)
+    return todo_list
 
 @app.get("/todos/{todo_id}", response_model=TodoRead)
 def read_todo(todo_id: UUID, current_user: dict = Depends(get_current_user), session: Session = Depends(get_session)):
@@ -178,7 +195,17 @@ def read_todo(todo_id: UUID, current_user: dict = Depends(get_current_user), ses
     todo = session.exec(statement).first()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
-    return todo
+    # Convert to TodoRead with default values for missing fields
+    return TodoRead(
+        id=todo.id,
+        user_id=todo.user_id,
+        title=todo.title,
+        completed=todo.completed,
+        created_at=todo.created_at,
+        updated_at=todo.updated_at,
+        description=None,  # Default since column doesn't exist
+        is_deleted=False  # Default since column doesn't exist
+    )
 
 @app.put("/todos/{todo_id}", response_model=TodoRead)
 def update_todo(todo_id: UUID, todo_update: TodoUpdate, current_user: dict = Depends(get_current_user), session: Session = Depends(get_session)):
@@ -186,16 +213,31 @@ def update_todo(todo_id: UUID, todo_update: TodoUpdate, current_user: dict = Dep
     db_todo = session.exec(statement).first()
     if not db_todo:
         raise HTTPException(status_code=404, detail="Todo not found")
-    
+
+    # Only update fields that exist in the database
     update_data = todo_update.dict(exclude_unset=True)
     for key, value in update_data.items():
-        setattr(db_todo, key, value)
-    
+        # Skip updating description and is_deleted since they don't exist in DB
+        if key in ['description', 'is_deleted']:
+            continue
+        if hasattr(db_todo, key):
+            setattr(db_todo, key, value)
+
     db_todo.updated_at = datetime.utcnow()
     session.add(db_todo)
     session.commit()
     session.refresh(db_todo)
-    return db_todo
+    # Convert to TodoRead with default values for missing fields
+    return TodoRead(
+        id=db_todo.id,
+        user_id=db_todo.user_id,
+        title=db_todo.title,
+        completed=db_todo.completed,
+        created_at=db_todo.created_at,
+        updated_at=db_todo.updated_at,
+        description=None,  # Default since column doesn't exist
+        is_deleted=False  # Default since column doesn't exist
+    )
 
 @app.delete("/todos/{todo_id}")
 def delete_todo(todo_id: UUID, current_user: dict = Depends(get_current_user), session: Session = Depends(get_session)):
@@ -203,10 +245,9 @@ def delete_todo(todo_id: UUID, current_user: dict = Depends(get_current_user), s
     todo = session.exec(statement).first()
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
-    
-    # Soft delete
-    todo.is_deleted = True
-    session.add(todo)
+
+    # Since is_deleted field doesn't exist in the database, perform hard delete
+    session.delete(todo)
     session.commit()
     return {"message": "Todo deleted"}
 
@@ -261,7 +302,7 @@ async def process_chat_command(
                     response=response_text
                 )
                 chat_service.create_chat_message(chat_message_create)
-                
+
                 return ChatResponse(
                     success=True,
                     intent="CREATE",
@@ -277,7 +318,7 @@ async def process_chat_command(
              if not title:
                  regex_entities = extract_entities(request.message)
                  title = regex_entities.get("title") or request.message
-             
+
              db_todo = Todo(
                  user_id=current_user["id"],
                  title=title,
@@ -297,7 +338,7 @@ async def process_chat_command(
                  statement = select(Todo).where(Todo.user_id == current_user["id"], Todo.is_deleted == False)
                  todos = session.exec(statement).all()
                  target_todo = next((t for t in todos if title.lower() in t.title.lower()), None)
-                 
+
                  if target_todo:
                      target_todo.completed = True
                      target_todo.updated_at = datetime.utcnow()
@@ -314,7 +355,7 @@ async def process_chat_command(
                  statement = select(Todo).where(Todo.user_id == current_user["id"], Todo.is_deleted == False)
                  todos = session.exec(statement).all()
                  target_todo = next((t for t in todos if title.lower() in t.title.lower()), None)
-                 
+
                  if target_todo:
                      target_todo.is_deleted = True
                      session.add(target_todo)

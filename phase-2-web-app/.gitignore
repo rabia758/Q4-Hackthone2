@@ -94,3 +94,4 @@ out/
 .svelte-kit/
 .c8/
 .nyc_output/
+.vercel
