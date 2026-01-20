@@ -50,9 +50,17 @@ class AIService:
         # Determine Base URL
         # If explicitly set, use it. If OPENROUTER key present or key starts with sk-or-v1, use OpenRouter URL.
         self.base_url = os.getenv("OPENAI_BASE_URL")
+        
+        # OpenRouter specific headers
+        self.default_headers = {}
+
         if not self.base_url:
             if os.getenv("OPENROUTER_API_KEY") or (self.api_key and self.api_key.startswith("sk-or-v1-")):
                 self.base_url = "https://openrouter.ai/api/v1"
+                self.default_headers = {
+                    "HTTP-Referer": os.getenv("NEXT_PUBLIC_APP_URL", "https://q4-hackthone2.vercel.app"),
+                    "X-Title": "Todo AI Assistant"
+                }
 
         # Determine Model
         if os.getenv("OPENROUTER_API_KEY") or (self.api_key and self.api_key.startswith("sk-or-v1-")):
@@ -63,12 +71,15 @@ class AIService:
              logger.info(f"Using OpenAI API with model {self.model}")
 
         if not self.api_key:
-            raise ValueError("No API key found. Please set OPENROUTER_API_KEY or OPENAI_API_KEY environment variable.")
-            
-        self.client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+            # Don't raise error here to avoid crashing app on startup if key is missing (common in build phase)
+            logger.warning("No API key found. AI features will not work.")
+            self.client = None
+        else:
+            self.client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                default_headers=self.default_headers
+            )
              
         self.max_retries = 3
         self.timeout = 30
@@ -77,6 +88,13 @@ class AIService:
         """
         Process a natural language command from the user with comprehensive error handling
         """
+        if not self.client:
+             return AIResponse(
+                success=False,
+                response="AI service is not configured (missing API Key).",
+                intent="UNKNOWN"
+            )
+
         retry_count = 0
         last_error = None
 
